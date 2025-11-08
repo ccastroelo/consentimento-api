@@ -1,0 +1,71 @@
+# services: Define cada contêiner (microsserviço, banco, storage).
+# build: Indica a pasta onde está o Dockerfile para construir a imagem da API (vamos criar os Dockerfiles depois).
+# image: Usa imagens prontas do Docker Hub (para Postgres e MinIO).
+# ports: Mapeia portas do seu computador para portas dentro do contêiner.
+# volumes: postgres_data e minio_data garantem que os dados não se percam quando os contêineres pararem. Os volumes mapeados nas APIs (./api-politicas:/app) permitem que alterações no seu código local sejam refletidas imediatamente no contêiner, sem precisar reconstruir a imagem.
+# environment: Define variáveis de ambiente, como as credenciais do banco e do MinIO, que suas APIs usarão para se conectar.
+# depends_on: Garante que o banco de dados e o storage iniciem antes das APIs que dependem deles.
+# command: O comando executado quando o contêiner inicia.
+
+version: '3.8'
+
+services:
+  # Serviço para a API de Políticas
+  api-politicas:
+    build: ./api-politicas # Indica que a imagem será construída a partir do Dockerfile na pasta api-politicas
+    ports:
+      - "5001:5000" # Mapeia a porta 5001 do seu PC para a porta 5000 do contêiner
+    volumes:
+      - ./api-politicas:/app # Mapeia o código local para dentro do contêiner (facilita o desenvolvimento)
+    depends_on:
+      - database
+      - storage
+    environment:
+      - DATABASE_URL=postgresql://user:password@database:5432/consentdb
+      - MINIO_URL=http://storage:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=politicas
+    command: python app.py # Comando para iniciar a API (ajustaremos conforme sua implementação)
+
+  # Serviço para a API de Consentimentos
+  api-consentimentos:
+    build: ./api-consentimentos
+    ports:
+      - "5002:5000"
+    volumes:
+      - ./api-consentimentos:/app
+    depends_on:
+      - database
+    environment:
+      - DATABASE_URL=postgresql://user:password@database:5432/consentdb
+    command: python app.py
+
+  # Serviço de Banco de Dados PostgreSQL
+  database:
+    image: postgres:14-alpine # Usa uma imagem oficial do PostgreSQL
+    environment:
+      POSTGRES_DB: consentdb # Nome do banco de dados a ser criado
+      POSTGRES_USER: user # Usuário do banco
+      POSTGRES_PASSWORD: password # Senha do banco
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Volume para persistir os dados do banco
+    ports:
+      - "5432:5432" # Expõe a porta do PostgreSQL (opcional, útil para debug)
+
+  # Serviço de Armazenamento de Objetos MinIO (Simulador S3)
+  storage:
+    image: minio/minio:latest # Usa uma imagem oficial do MinIO
+    ports:
+      - "9000:9000"  # Porta da API do MinIO
+      - "9001:9001"  # Porta do Console Web do MinIO
+    environment:
+      MINIO_ROOT_USER: minioadmin # Usuário admin do MinIO
+      MINIO_ROOT_PASSWORD: minioadmin # Senha admin do MinIO
+    volumes:
+      - minio_data:/data # Volume para persistir os dados do MinIO
+    command: server /data --console-address ":9001" # Comando para iniciar o servidor MinIO
+
+volumes: # Define volumes nomeados para persistência
+  postgres_data:
+  minio_data:
