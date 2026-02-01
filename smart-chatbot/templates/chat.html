@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente de Privacidade</title>
+    <style>
+        /* Estilo inspirado em Apps de Mensagem */
+        body { background-color: #e5ddd5; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; display: flex; justify-content: center; height: 100vh; }
+        #phone-frame { width: 100%; max-width: 400px; height: 100%; background: #fff; display: flex; flex-direction: column; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        #header { background-color: #075e54; color: white; padding: 15px; display: flex; align-items: center; font-weight: bold; }
+        #header img { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; background: #fff; }
+        #chat-area { flex: 1; background: #e5ddd5; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+
+        .message { max-width: 80%; padding: 10px 15px; border-radius: 7px; font-size: 14px; line-height: 1.4; position: relative; animation: fadeIn 0.3s; }
+        .bot { align-self: flex-start; background: #fff; color: #333; border-top-left-radius: 0; }
+        .user { align-self: flex-end; background: #dcf8c6; color: #333; border-top-right-radius: 0; }
+        .meta { font-size: 10px; color: #999; text-align: right; margin-top: 5px; }
+
+        #input-area { background: #f0f0f0; padding: 10px; display: flex; align-items: center; }
+        #user-input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ccc; outline: none; }
+        #send-btn { background: #075e54; color: white; border: none; padding: 10px 15px; border-radius: 50%; margin-left: 10px; cursor: pointer; }
+
+        /* Botões de Ação no Chat */
+        .action-container { display: flex; gap: 10px; justify-content: center; margin-top: 5px; }
+        .action-btn { padding: 8px 20px; border: none; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-accept { background: #28a745; color: white; }
+        .btn-reject { background: #dc3545; color: white; }
+        .btn-accept:hover { opacity: 0.9; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .typing { font-style: italic; color: #777; font-size: 12px; margin-left: 10px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="phone-frame">
+        <div id="header">
+            <img src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" alt="Bot">
+            <div>
+                <div>Assistente LGPD</div>
+                <div style="font-size: 11px; font-weight: normal;">Online</div>
+            </div>
+        </div>
+
+        <div id="chat-area">
+            </div>
+        <div class="typing" id="typing-indicator">Digitando...</div>
+
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Digite sua mensagem..." disabled>
+            <button id="send-btn" disabled>➤</button>
+        </div>
+    </div>
+
+    <script>
+        const chatArea = document.getElementById('chat-area');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const inputField = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        let userId = "visitante_" + Math.floor(Math.random() * 1000);
+        let currentPolicyId = null;
+
+        function getTime() {
+            const now = new Date();
+            return now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0');
+        }
+
+        function addMessage(text, type) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${type}`;
+            msgDiv.innerHTML = `${text} <div class="meta">${getTime()}</div>`;
+            chatArea.appendChild(msgDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function showTyping(show) {
+            typingIndicator.style.display = show ? 'block' : 'none';
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        // Simula atraso de rede e "pensamento" do bot
+        function botReply(text, delay = 1000) {
+            return new Promise(resolve => {
+                showTyping(true);
+                setTimeout(() => {
+                    showTyping(false);
+                    addMessage(text, 'bot');
+                    resolve();
+                }, delay);
+            });
+        }
+
+        // Fluxo Principal
+        async function startFlow() {
+            await botReply("Olá! Sou seu assistente de privacidade.");
+            await botReply("Antes de continuarmos, preciso que você se identifique para nossa auditoria. Qual é o seu ID ou Nome?");
+
+            // Habilita input
+            inputField.disabled = false;
+            sendBtn.disabled = false;
+            inputField.focus();
+        }
+
+        // Manipula envio do usuário
+        async function handleUserSubmit() {
+            const text = inputField.value.trim();
+            if (!text) return;
+
+            addMessage(text, 'user');
+            inputField.value = '';
+            inputField.disabled = true;
+            sendBtn.disabled = true;
+
+            userId = text; // Salva o ID
+
+            await botReply(`Obrigado, <b>${userId}</b>.`);
+            await botReply("Vou verificar qual é a nossa Política de Privacidade mais recente...");
+
+            try {
+                const response = await fetch('/api/policy');
+                const policy = await response.json();
+
+                if (response.ok) {
+                    currentPolicyId = policy.id;
+                    const link = `<a href="${policy.s3_url}" target="_blank" style="color: #007bff;">Clique aqui para ler (v${policy.version})</a>`;
+
+                    await botReply(`Encontrei. A versão vigente é a <b>${policy.version}</b>.`);
+                    await botReply(`Por favor, leia o documento: <br>${link}`);
+
+                    // Adiciona botões
+                    const actionDiv = document.createElement('div');
+                    actionDiv.className = "action-container";
+                    actionDiv.innerHTML = `
+                        <button class="action-btn btn-reject" onclick="submitConsent(false)">Recusar</button>
+                        <button class="action-btn btn-accept" onclick="submitConsent(true)">Aceitar e Continuar</button>
+                    `;
+                    chatArea.appendChild(actionDiv);
+                    chatArea.scrollTop = chatArea.scrollHeight;
+
+                } else {
+                    await botReply("❌ Erro: Não consegui buscar a política. Avise o admin.");
+                }
+            } catch (e) {
+                await botReply("❌ Erro de conexão com o servidor.");
+            }
+        }
+
+        // Envia consentimento
+        window.submitConsent = async function(accepted) {
+            // Remove os botões
+            document.querySelector('.action-container').remove();
+
+            if (accepted) {
+                addMessage("Li e Aceito os termos.", 'user');
+                await botReply("Perfeito. Registrando seu consentimento...");
+            } else {
+                addMessage("Não concordo.", 'user');
+                await botReply("Entendido. Registrando sua recusa...");
+            }
+
+            try {
+                const response = await fetch('/api/consent', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id_user: isNaN(userId) ? 999 : parseInt(userId), // Tenta converter para int ou usa 999
+                        id_policy: currentPolicyId,
+                        channel: 'smart_chatbot',
+                        status: accepted ? 'given' : 'refused'
+                    })
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    await botReply(`✅ <b>Registro confirmado!</b><br>Recibo #${result.consent.id}<br>Hash: ${result.consent.validation_hash.substring(0,8)}...`);
+                    if (accepted) {
+                        await botReply("Agora você pode usar nossos serviços normalmente. 😄");
+                    } else {
+                        await botReply("O acesso aos serviços será limitado conforme suas preferências.");
+                    }
+                } else {
+                    await botReply(`⚠️ Erro ao registrar: ${result.error}`);
+                }
+            } catch (e) {
+                await botReply("⚠️ Erro fatal ao conectar com a API de Auditoria.");
+            }
+        }
+
+        sendBtn.onclick = handleUserSubmit;
+        inputField.addEventListener("keypress", function(event) {
+            if (event.key === "Enter") handleUserSubmit();
+        });
+
+        // Inicia
+        setTimeout(startFlow, 500);
+    </script>
+</body>
+</html>

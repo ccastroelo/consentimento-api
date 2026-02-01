@@ -23,10 +23,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://user:password@database:5432/consentdb
       - MINIO_URL=http://storage:9000
+      - MINIO_PUBLIC_URL=http://98.89.34.189:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET=politicas
-    command: python app.py # Comando para iniciar a API (ajustaremos conforme sua implementação)
+
 
   # Serviço para a API de Consentimentos
   api-consentimentos:
@@ -39,7 +40,34 @@ services:
       - database
     environment:
       - DATABASE_URL=postgresql://user:password@database:5432/consentdb
-    command: python app.py
+
+  app-chatbot:
+    build: ./app-chatbot
+    ports:
+      - "5003:5000" # Vamos expor na porta 5003 do seu PC/VM
+    volumes:
+      - ./app-chatbot:/app
+    depends_on:
+      - api-politicas
+      - api-consentimentos
+    environment:
+      # URLs internas do Docker para as APIs
+      URL_API_POLITICAS: http://api-politicas:5000
+      URL_API_CONSENTIMENTOS: http://api-consentimentos:5000
+
+# --- NOVO CHATBOT (PLANO A) ---
+  smart-chatbot:
+    build: ./smart-chatbot
+    ports:
+      - "5004:5000" # Porta diferente!
+    volumes:
+      - ./smart-chatbot:/app
+    depends_on:
+      - api-politicas
+      - api-consentimentos
+    environment:
+      URL_API_POLITICAS: http://api-politicas:5000
+      URL_API_CONSENTIMENTOS: http://api-consentimentos:5000
 
   # Serviço de Banco de Dados PostgreSQL
   database:

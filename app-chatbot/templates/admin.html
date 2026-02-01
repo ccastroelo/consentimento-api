@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Upload de Política</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+        #info-box {
+            background: #e6f7ff; border: 1px solid #b3e0ff; padding: 15px;
+            margin-bottom: 20px; border-radius: 8px; color: #0056b3;
+        }
+        #info-box strong { display: block; margin-bottom: 5px; }
+        form { border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
+        fieldset { border: none; padding: 0; }
+        legend { font-size: 1.5em; font-weight: bold; margin-bottom: 10px; }
+        div { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], textarea, input[type="file"] {
+            width: 95%; padding: 8px; font-size: 1em; border: 1px solid #ddd; border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px; font-size: 1.1em; color: white;
+            background-color: #007bff; border: none; border-radius: 4px; cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+    {% if latest_policy %}
+            <div id="info-box">
+                <strong>Última Política Cadastrada:</strong>
+                Versão: {{ latest_policy.version }} (Data: {{ latest_policy.published_at }})
+            </div>
+    {% else %}
+            <div id="info-box" style="background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;">
+                Nenhuma política cadastrada ainda.
+            </div>
+    {% endif %}
+    <form action="/upload-policy" method="POST" enctype="multipart/form-data">
+        <fieldset>
+            <legend>Cadastrar Nova Política</legend>
+            <div>
+                <label for="version">Versão (ex: 1.0.1):</label>
+                <input type="text" id="version" name="version" required>
+            </div>
+            <div>
+                <label for="description">Descrição das Mudanças:</label>
+                <textarea id="description" name="description" rows="3"></textarea>
+            </div>
+            <div>
+                <label for="file">Arquivo da Política (PDF, HTML, etc.):</label>
+                <input type="file" id="file" name="file" required>
+            </div>
+            <div>
+                <button type="submit">Enviar Política</button>
+            </div>
+        </fieldset>
+    </form>
+
+    <hr style="margin-top: 20px;">
+    <a href="/">Voltar para o Chatbot</a>
+
+</body>
+</html>

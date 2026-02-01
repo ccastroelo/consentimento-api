@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Log de Auditoria - Usuário {{ user_id }}</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 40px auto; }
+        h1 { color: #333; }
+        .log-table {
+            width: 100%; border-collapse: collapse; margin-top: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .log-table th, .log-table td {
+            border: 1px solid #ddd; padding: 12px; text-align: left;
+        }
+        .log-table th { background-color: #f4f4f4; }
+        .status-given { color: #28a745; font-weight: bold; }
+        .status-refused { color: #dc3545; font-weight: bold; }
+        .no-logs {
+            font-size: 1.2em; color: #777; margin-top: 20px;
+            text-align: center; padding: 30px; background: #fff; border: 1px solid #ddd;
+        }
+        a { color: #007bff; }
+    </style>
+</head>
+<body>
+
+    <a href="/">&larr; Voltar para o Chatbot</a>
+
+    <h1>Log de Auditoria</h1>
+    <h2>Exibindo registros para o Usuário ID: <span style="color:#007bff;">{{ user_id }}</span></h2>
+
+    {% if consents %}
+        <table class="log-table">
+            <thead>
+                <tr>
+                    <th>ID do Log</th>
+                    <th>Status</th>
+                    <th>Data/Hora (UTC)</th>
+                    <th>Canal</th>
+                    <th>ID da Política</th>
+                    <th>Versão da Política</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for consent in consents %}
+                <tr>
+                    <td>{{ consent.id }}</td>
+                    <td>
+                        {% if consent.status == 'given' %}
+                            <span class="status-given">ACEITO</span>
+                        {% else %}
+                            <span class="status-refused">RECUSADO</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ consent.created_at }}</td>
+                    <td>{{ consent.channel }}</td>
+                    <td>{{ consent.id_policy }}</td>
+                    <td>{{ consent.policy_info.version if consent.policy_info else 'N/A' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="no-logs">
+            Nenhum registro de consentimento encontrado para este usuário.
+        </div>
+    {% endif %}
+
+</body>
+</html>
