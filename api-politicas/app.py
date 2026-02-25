@@ -1,10 +1,13 @@
 import os
 import hashlib
 import boto3
+import json
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from botocore.client import Config
 from botocore.exceptions import NoCredentialsError
+from werkzeug.utils import secure_filename
+
 
 # --- Configuração Inicial ---
 app = Flask(__name__)
@@ -91,7 +94,8 @@ def create_policy():
 
       # 3. Upload para o MinIO/S3
         # Nome do objeto no bucket
-        object_name = f"{hash_sha256}-{file.filename}" 
+        nome_seguro = secure_filename(file.filename)
+        object_name = f"{hash_sha256}-{nome_seguro}"
 
         # Reposiciona o ponteiro do arquivo para o início antes do upload
         file.seek(0) 
@@ -104,6 +108,20 @@ def create_policy():
         except:
             # Se der erro (bucket não existe), a API cria ele na hora
             s3_client.create_bucket(Bucket=minio_bucket)
+            # Define a política pública de leitura            
+            policy = {
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Sid": "PublicRead",
+                    "Effect": "Allow",
+                    "Principal": "*",
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{minio_bucket}/*"]
+                }]
+            }
+
+            # Aplica a política ao bucket
+            s3_client.put_bucket_policy(Bucket=minio_bucket, Policy=json.dumps(policy))
         # ----------------------------------------------------------------
 
         s3_client.upload_fileobj(

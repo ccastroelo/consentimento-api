@@ -1,37 +1,187 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-pt">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assistente de Privacidade</title>
+    <title>Assistente de Privacidade LGPD</title>
     <style>
         /* Estilo inspirado em Apps de Mensagem */
-        body { background-color: #e5ddd5; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; display: flex; justify-content: center; height: 100vh; }
-        #phone-frame { width: 100%; max-width: 400px; height: 100%; background: #fff; display: flex; flex-direction: column; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        #header { background-color: #075e54; color: white; padding: 15px; display: flex; align-items: center; font-weight: bold; }
-        #header img { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; background: #fff; }
-        #chat-area { flex: 1; background: #e5ddd5; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        body {
+            background-color: #e5ddd5;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+        }
 
-        .message { max-width: 80%; padding: 10px 15px; border-radius: 7px; font-size: 14px; line-height: 1.4; position: relative; animation: fadeIn 0.3s; }
-        .bot { align-self: flex-start; background: #fff; color: #333; border-top-left-radius: 0; }
-        .user { align-self: flex-end; background: #dcf8c6; color: #333; border-top-right-radius: 0; }
-        .meta { font-size: 10px; color: #999; text-align: right; margin-top: 5px; }
+        #phone-frame {
+            width: 100%;
+            max-width: 400px;
+            height: 100%;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
 
-        #input-area { background: #f0f0f0; padding: 10px; display: flex; align-items: center; }
-        #user-input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ccc; outline: none; }
-        #send-btn { background: #075e54; color: white; border: none; padding: 10px 15px; border-radius: 50%; margin-left: 10px; cursor: pointer; }
+        #header {
+            background-color: #075e54;
+            color: white;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            font-weight: bold;
+        }
+
+        #header img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background: #fff;
+        }
+
+        #chat-area {
+            flex: 1;
+            background: #e5ddd5;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 10px 15px;
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.4;
+            position: relative;
+            animation: fadeIn 0.3s;
+            word-wrap: break-word;
+        }
+
+        .bot {
+            align-self: flex-start;
+            background: #fff;
+            color: #333;
+            border-top-left-radius: 0;
+        }
+
+        .user {
+            align-self: flex-end;
+            background: #dcf8c6;
+            color: #333;
+            border-top-right-radius: 0;
+        }
+
+        .meta {
+            font-size: 10px;
+            color: #999;
+            text-align: right;
+            margin-top: 5px;
+        }
+
+        #input-area {
+            background: #f0f0f0;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 20px;
+            border: 1px solid #ccc;
+            outline: none;
+        }
+
+        #send-btn {
+            background: #075e54;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 50%;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+
+        #send-btn:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
 
         /* Botões de Ação no Chat */
-        .action-container { display: flex; gap: 10px; justify-content: center; margin-top: 5px; }
-        .action-btn { padding: 8px 20px; border: none; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-accept { background: #28a745; color: white; }
-        .btn-reject { background: #dc3545; color: white; }
-        .btn-accept:hover { opacity: 0.9; }
+        .action-container {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 5px;
+            flex-wrap: wrap;
+        }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .typing { font-style: italic; color: #777; font-size: 12px; margin-left: 10px; display: none; }
+        .action-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            font-size: 13px;
+        }
+
+        .btn-accept {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-reject {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-history {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-forget {
+            background: #343a40;
+            color: white;
+        }
+
+        .action-btn:hover {
+            opacity: 0.8;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .typing {
+            font-style: italic;
+            color: #777;
+            font-size: 12px;
+            margin-left: 10px;
+            display: none;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
+
 <body>
 
     <div id="phone-frame">
@@ -39,16 +189,16 @@
             <img src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" alt="Bot">
             <div>
                 <div>Assistente LGPD</div>
-                <div style="font-size: 11px; font-weight: normal;">Online</div>
+                <div style="font-size: 11px; font-weight: normal;">Auditoria e Privacidade</div>
             </div>
         </div>
 
         <div id="chat-area">
-            </div>
-        <div class="typing" id="typing-indicator">Digitando...</div>
+            <div class="typing" id="typing-indicator">A processar...</div>
+        </div>
 
         <div id="input-area">
-            <input type="text" id="user-input" placeholder="Digite sua mensagem..." disabled>
+            <input type="text" id="user-input" placeholder="Digite o seu ID..." disabled>
             <button id="send-btn" disabled>➤</button>
         </div>
     </div>
@@ -59,7 +209,7 @@
         const inputField = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
 
-        let userId = "visitante_" + Math.floor(Math.random() * 1000);
+        let userId = null;
         let currentPolicyId = null;
 
         function getTime() {
@@ -71,7 +221,7 @@
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${type}`;
             msgDiv.innerHTML = `${text} <div class="meta">${getTime()}</div>`;
-            chatArea.appendChild(msgDiv);
+            chatArea.insertBefore(msgDiv, typingIndicator);
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
@@ -80,8 +230,7 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        // Simula atraso de rede e "pensamento" do bot
-        function botReply(text, delay = 1000) {
+        function botReply(text, delay = 800) {
             return new Promise(resolve => {
                 showTyping(true);
                 setTimeout(() => {
@@ -92,18 +241,14 @@
             });
         }
 
-        // Fluxo Principal
         async function startFlow() {
-            await botReply("Olá! Sou seu assistente de privacidade.");
-            await botReply("Antes de continuarmos, preciso que você se identifique para nossa auditoria. Qual é o seu ID ou Nome?");
-
-            // Habilita input
+            await botReply("Olá! Sou o seu assistente de conformidade.");
+            await botReply("Para garantirmos a rastreabilidade exigida por lei, por favor, insira o seu ID numérico de utilizador.");
             inputField.disabled = false;
             sendBtn.disabled = false;
             inputField.focus();
         }
 
-        // Manipula envio do usuário
         async function handleUserSubmit() {
             const text = inputField.value.trim();
             if (!text) return;
@@ -113,88 +258,150 @@
             inputField.disabled = true;
             sendBtn.disabled = true;
 
-            userId = text; // Salva o ID
+            // Validação rigorosa do ID para a API
+            userId = isNaN(text) ? 999 : parseInt(text);
 
-            await botReply(`Obrigado, <b>${userId}</b>.`);
-            await botReply("Vou verificar qual é a nossa Política de Privacidade mais recente...");
+            await botReply(`Identificação recebida (ID interno: ${userId}).`);
+            await botReply("A verificar a Política de Privacidade em vigor no repositório...");
 
             try {
                 const response = await fetch('/api/policy');
                 const policy = await response.json();
 
-                if (response.ok) {
+                if (response.ok && policy.id) {
                     currentPolicyId = policy.id;
-                    const link = `<a href="${policy.s3_url}" target="_blank" style="color: #007bff;">Clique aqui para ler (v${policy.version})</a>`;
+                    const link = `<a href="${policy.s3_url}" target="_blank" style="color: #007bff; font-weight: bold;">Documento Oficial (v${policy.version})</a>`;
 
-                    await botReply(`Encontrei. A versão vigente é a <b>${policy.version}</b>.`);
-                    await botReply(`Por favor, leia o documento: <br>${link}`);
+                    await botReply(`A versão atual é a <b>${policy.version}</b>.<br><br>Por favor, leia atentamente: <br>${link}`);
 
-                    // Adiciona botões
                     const actionDiv = document.createElement('div');
                     actionDiv.className = "action-container";
+                    actionDiv.id = "consent-actions";
                     actionDiv.innerHTML = `
-                        <button class="action-btn btn-reject" onclick="submitConsent(false)">Recusar</button>
-                        <button class="action-btn btn-accept" onclick="submitConsent(true)">Aceitar e Continuar</button>
+                        <button class="action-btn btn-reject" onclick="submitConsent(false)">Recusar Termos</button>
+                        <button class="action-btn btn-accept" onclick="submitConsent(true)">Aceitar Política</button>
                     `;
-                    chatArea.appendChild(actionDiv);
+                    chatArea.insertBefore(actionDiv, typingIndicator);
                     chatArea.scrollTop = chatArea.scrollHeight;
-
                 } else {
-                    await botReply("❌ Erro: Não consegui buscar a política. Avise o admin.");
+                    await botReply("❌ Erro: Nenhuma política ativa encontrada no servidor.");
                 }
             } catch (e) {
-                await botReply("❌ Erro de conexão com o servidor.");
+                await botReply("❌ Falha crítica de comunicação com o serviço de Políticas.");
             }
         }
 
-        // Envia consentimento
-        window.submitConsent = async function(accepted) {
-            // Remove os botões
-            document.querySelector('.action-container').remove();
+        window.submitConsent = async function (accepted) {
+            document.getElementById('consent-actions').remove();
 
             if (accepted) {
-                addMessage("Li e Aceito os termos.", 'user');
-                await botReply("Perfeito. Registrando seu consentimento...");
+                addMessage("Declaro que li e aceito os termos.", 'user');
+                await botReply("A processar o registo criptográfico do seu consentimento...");
             } else {
-                addMessage("Não concordo.", 'user');
-                await botReply("Entendido. Registrando sua recusa...");
+                addMessage("Não aceito os termos propostos.", 'user');
+                await botReply("A registar a sua recusa. Os serviços serão limitados.");
             }
 
             try {
                 const response = await fetch('/api/consent', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        id_user: isNaN(userId) ? 999 : parseInt(userId), // Tenta converter para int ou usa 999
+                        id_user: userId,
                         id_policy: currentPolicyId,
-                        channel: 'smart_chatbot',
+                        channel: 'smart_chatbot_web',
                         status: accepted ? 'given' : 'refused'
                     })
                 });
                 const result = await response.json();
 
                 if (response.ok) {
-                    await botReply(`✅ <b>Registro confirmado!</b><br>Recibo #${result.consent.id}<br>Hash: ${result.consent.validation_hash.substring(0,8)}...`);
-                    if (accepted) {
-                        await botReply("Agora você pode usar nossos serviços normalmente. 😄");
-                    } else {
-                        await botReply("O acesso aos serviços será limitado conforme suas preferências.");
-                    }
+                    await botReply(`✅ <b>Auditoria Concluída</b><br>Hash de Validação:<br><span style="font-size: 11px; word-break: break-all; color: #555;">${result.consent.validation_hash}</span>`);
+                    renderPrivacyMenu();
+                } else if (response.status === 403) {
+                    await botReply(`⛔ <b>Acesso Recusado:</b> ${result.error || "O seu perfil já foi submetido a anonimização irreversível."}`);
                 } else {
-                    await botReply(`⚠️ Erro ao registrar: ${result.error}`);
+                    await botReply(`⚠️ Erro na transação: ${result.error}`);
                 }
             } catch (e) {
-                await botReply("⚠️ Erro fatal ao conectar com a API de Auditoria.");
+                await botReply("⚠️ Ocorreu uma falha ao contactar o motor de base de dados.");
+            }
+        }
+
+        function renderPrivacyMenu() {
+            const menuDiv = document.createElement('div');
+            menuDiv.className = "action-container";
+            menuDiv.id = "privacy-menu";
+            menuDiv.innerHTML = `
+                <button class="action-btn btn-history" onclick="fetchHistory()">Consultar Histórico</button>
+                <button class="action-btn btn-forget" onclick="forgetUser()">Esquecer os Meus Dados</button>
+            `;
+            chatArea.insertBefore(menuDiv, typingIndicator);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function removePrivacyMenu() {
+            const menu = document.getElementById('privacy-menu');
+            if (menu) menu.remove();
+        }
+
+        window.fetchHistory = async function () {
+            removePrivacyMenu();
+            addMessage("Quero consultar o meu registo de atividades.", 'user');
+            await botReply("A reconstruir a matriz de pseudonimização para efetuar a consulta...");
+
+            try {
+                const response = await fetch(`/api/consent/history/${userId}`);
+                const result = await response.json();
+
+                if (response.ok) {
+                    let historyHtml = "<b>Os seus Registos:</b><br><br>";
+                    result.forEach(item => {
+                        const date = new Date(item.created_at).toLocaleString('pt-PT');
+                        historyHtml += `Status: <b>${item.status.toUpperCase()}</b><br>Data: ${date}<br>Canal: ${item.channel}<br><hr style="border: 0.5px solid #ccc;">`;
+                    });
+                    await botReply(historyHtml);
+                    renderPrivacyMenu(); // Restaura o menu
+                } else {
+                    await botReply(`⚠️ Consulta indisponível: ${result.error}`);
+                    renderPrivacyMenu();
+                }
+            } catch (e) {
+                await botReply("⚠️ Falha de rede ao tentar consultar o histórico.");
+                renderPrivacyMenu();
+            }
+        }
+
+        window.forgetUser = async function () {
+            removePrivacyMenu();
+            addMessage("Exijo a aplicação do Direito ao Esquecimento (Eliminação de Dados).", 'user');
+            await botReply("⚠️ <b>Aviso:</b> Esta ação executará o protocolo de Crypto-Shredding. A sua chave criptográfica será destruída e o vínculo entre a sua identidade e os dados será irreversivelmente apagado.");
+            await botReply("A executar destruição...");
+
+            try {
+                const response = await fetch(`/api/consent/forget/${userId}`, { method: 'DELETE' });
+                const result = await response.json();
+
+                if (response.ok) {
+                    await botReply("✅ <b>Crypto-Shredding Concluído.</b><br>Os seus dados pessoais foram completamente dissociados dos registos do sistema.");
+                    await botReply("A sessão foi terminada permanentemente por questões de segurança. Para interagir com o sistema novamente, será necessário um novo ID.");
+                } else {
+                    await botReply(`⚠️ Falha ao executar protocolo: ${result.error}`);
+                    renderPrivacyMenu();
+                }
+            } catch (e) {
+                await botReply("⚠️ Erro crítico ao invocar o serviço de eliminação.");
+                renderPrivacyMenu();
             }
         }
 
         sendBtn.onclick = handleUserSubmit;
-        inputField.addEventListener("keypress", function(event) {
+        inputField.addEventListener("keypress", function (event) {
             if (event.key === "Enter") handleUserSubmit();
         });
 
-        // Inicia
-        setTimeout(startFlow, 500);
+        setTimeout(startFlow, 800);
     </script>
 </body>
+
 </html>

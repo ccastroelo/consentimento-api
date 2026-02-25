@@ -10,26 +10,25 @@
 version: '3.8'
 
 services:
-  # Serviço para a API de Políticas
   api-politicas:
-    build: ./api-politicas # Indica que a imagem será construída a partir do Dockerfile na pasta api-politicas
+    build: ./api-politicas
     ports:
-      - "5001:5000" # Mapeia a porta 5001 do seu PC para a porta 5000 do contêiner
+      - "5001:5000"
     volumes:
-      - ./api-politicas:/app # Mapeia o código local para dentro do contêiner (facilita o desenvolvimento)
+      - ./api-politicas:/app
     depends_on:
-      - database
-      - storage
+      database:
+        condition: service_healthy # Espera o banco estar 100% pronto
+      storage:
+        condition: service_started
     environment:
       - DATABASE_URL=postgresql://user:password@database:5432/consentdb
       - MINIO_URL=http://storage:9000
-      - MINIO_PUBLIC_URL=http://98.89.34.189:9000
+      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL}
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET=politicas
 
-
-  # Serviço para a API de Consentimentos
   api-consentimentos:
     build: ./api-consentimentos
     ports:
@@ -37,29 +36,28 @@ services:
     volumes:
       - ./api-consentimentos:/app
     depends_on:
-      - database
+      database:
+        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://user:password@database:5432/consentdb
 
   app-chatbot:
     build: ./app-chatbot
     ports:
-      - "5003:5000" # Vamos expor na porta 5003 do seu PC/VM
+      - "5003:5000"
     volumes:
       - ./app-chatbot:/app
     depends_on:
       - api-politicas
       - api-consentimentos
     environment:
-      # URLs internas do Docker para as APIs
       URL_API_POLITICAS: http://api-politicas:5000
       URL_API_CONSENTIMENTOS: http://api-consentimentos:5000
 
-# --- NOVO CHATBOT (PLANO A) ---
   smart-chatbot:
     build: ./smart-chatbot
     ports:
-      - "5004:5000" # Porta diferente!
+      - "5004:5000"
     volumes:
       - ./smart-chatbot:/app
     depends_on:
@@ -69,31 +67,34 @@ services:
       URL_API_POLITICAS: http://api-politicas:5000
       URL_API_CONSENTIMENTOS: http://api-consentimentos:5000
 
-  # Serviço de Banco de Dados PostgreSQL
   database:
-    image: postgres:14-alpine # Usa uma imagem oficial do PostgreSQL
+    image: postgres:14-alpine
     environment:
-      POSTGRES_DB: consentdb # Nome do banco de dados a ser criado
-      POSTGRES_USER: user # Usuário do banco
-      POSTGRES_PASSWORD: password # Senha do banco
+      POSTGRES_DB: consentdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
     volumes:
-      - postgres_data:/var/lib/postgresql/data # Volume para persistir os dados do banco
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck: # --- NOVO: Verifica se o banco aceita conexões ---
+      test: ["CMD-SHELL", "pg_isready -U user -d consentdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     ports:
-      - "5432:5432" # Expõe a porta do PostgreSQL (opcional, útil para debug)
+      - "5432:5432"
 
-  # Serviço de Armazenamento de Objetos MinIO (Simulador S3)
   storage:
-    image: minio/minio:latest # Usa uma imagem oficial do MinIO
+    image: minio/minio:latest
     ports:
-      - "9000:9000"  # Porta da API do MinIO
-      - "9001:9001"  # Porta do Console Web do MinIO
+      - "9000:9000"
+      - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin # Usuário admin do MinIO
-      MINIO_ROOT_PASSWORD: minioadmin # Senha admin do MinIO
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
     volumes:
-      - minio_data:/data # Volume para persistir os dados do MinIO
-    command: server /data --console-address ":9001" # Comando para iniciar o servidor MinIO
+      - minio_data:/data
+    command: server /data --console-address ":9001"
 
-volumes: # Define volumes nomeados para persistência
+volumes:
   postgres_data:
   minio_data:
