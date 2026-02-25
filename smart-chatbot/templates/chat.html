@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assistente de Privacidade LGPD</title>
     <style>
-        /* Estilo inspirado em Apps de Mensagem */
         body {
             background-color: #e5ddd5;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -258,10 +257,34 @@
             inputField.disabled = true;
             sendBtn.disabled = true;
 
-            // Validação rigorosa do ID para a API
             userId = isNaN(text) ? 999 : parseInt(text);
 
             await botReply(`Identificação recebida (ID interno: ${userId}).`);
+
+            // ----------------------------------------------------------------
+            // NOVO FLUXO DE SEGURANÇA: Autenticação via Mock IdP
+            // ----------------------------------------------------------------
+            await botReply("A estabelecer ligação segura com o Provedor de Identidade...");
+
+            try {
+                const authResponse = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+
+                if (!authResponse.ok) {
+                    await botReply("⛔ <b>Falha na Autenticação:</b> Não foi possível validar a sua identidade. Acesso bloqueado.");
+                    return; // Interrompe o fluxo aqui.
+                }
+
+                await botReply("✅ Identidade confirmada e sessão segura iniciada.");
+            } catch (e) {
+                await botReply("❌ Erro crítico ao contactar o servidor de autenticação.");
+                return;
+            }
+            // ----------------------------------------------------------------
+
             await botReply("A verificar a Política de Privacidade em vigor no repositório...");
 
             try {
@@ -278,9 +301,9 @@
                     actionDiv.className = "action-container";
                     actionDiv.id = "consent-actions";
                     actionDiv.innerHTML = `
-                        <button class="action-btn btn-reject" onclick="submitConsent(false)">Recusar Termos</button>
-                        <button class="action-btn btn-accept" onclick="submitConsent(true)">Aceitar Política</button>
-                    `;
+                <button class="action-btn btn-reject" onclick="submitConsent(false)">Recusar Termos</button>
+                <button class="action-btn btn-accept" onclick="submitConsent(true)">Aceitar Política</button>
+            `;
                     chatArea.insertBefore(actionDiv, typingIndicator);
                     chatArea.scrollTop = chatArea.scrollHeight;
                 } else {
@@ -303,6 +326,7 @@
             }
 
             try {
+                // A sessão do navegador cuidará de enviar o cookie com o JWT automaticamente para o Flask
                 const response = await fetch('/api/consent', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -316,10 +340,10 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    await botReply(`✅ <b>Auditoria Concluída</b><br>Hash de Validação:<br><span style="font-size: 11px; word-break: break-all; color: #555;">${result.consent.validation_hash}</span>`);
+                    await botReply(`✅ <b>Auditoria Concluída</b><br>Hash de Validação:<br><span style="font-size: 11px; word-break: break-all; color: #555;">${result.validation_hash || result.consent?.validation_hash}</span>`);
                     renderPrivacyMenu();
-                } else if (response.status === 403) {
-                    await botReply(`⛔ <b>Acesso Recusado:</b> ${result.error || "O seu perfil já foi submetido a anonimização irreversível."}`);
+                } else if (response.status === 401 || response.status === 403) {
+                    await botReply(`⛔ <b>Acesso Recusado:</b> ${result.error}`);
                 } else {
                     await botReply(`⚠️ Erro na transação: ${result.error}`);
                 }
@@ -333,9 +357,9 @@
             menuDiv.className = "action-container";
             menuDiv.id = "privacy-menu";
             menuDiv.innerHTML = `
-                <button class="action-btn btn-history" onclick="fetchHistory()">Consultar Histórico</button>
-                <button class="action-btn btn-forget" onclick="forgetUser()">Esquecer os Meus Dados</button>
-            `;
+        <button class="action-btn btn-history" onclick="fetchHistory()">Consultar Histórico</button>
+        <button class="action-btn btn-forget" onclick="forgetUser()">Esquecer os Meus Dados</button>
+    `;
             chatArea.insertBefore(menuDiv, typingIndicator);
             chatArea.scrollTop = chatArea.scrollHeight;
         }
@@ -361,7 +385,7 @@
                         historyHtml += `Status: <b>${item.status.toUpperCase()}</b><br>Data: ${date}<br>Canal: ${item.channel}<br><hr style="border: 0.5px solid #ccc;">`;
                     });
                     await botReply(historyHtml);
-                    renderPrivacyMenu(); // Restaura o menu
+                    renderPrivacyMenu();
                 } else {
                     await botReply(`⚠️ Consulta indisponível: ${result.error}`);
                     renderPrivacyMenu();
@@ -384,7 +408,7 @@
 
                 if (response.ok) {
                     await botReply("✅ <b>Crypto-Shredding Concluído.</b><br>Os seus dados pessoais foram completamente dissociados dos registos do sistema.");
-                    await botReply("A sessão foi terminada permanentemente por questões de segurança. Para interagir com o sistema novamente, será necessário um novo ID.");
+                    await botReply("A sessão autenticada foi terminada. Para interagir com o sistema novamente, atualize a página e insira um novo ID.");
                 } else {
                     await botReply(`⚠️ Falha ao executar protocolo: ${result.error}`);
                     renderPrivacyMenu();

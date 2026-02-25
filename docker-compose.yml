@@ -39,8 +39,10 @@ services:
       database:
         condition: service_healthy
     environment:
+      - JWT_SECRET=${JWT_SECRET:-chave-super-secreta-para-a-poc}
       - DATABASE_URL=postgresql://user:password@database:5432/consentdb
 
+  # Container para simular o Chatbot
   app-chatbot:
     build: ./app-chatbot
     ports:
@@ -53,6 +55,8 @@ services:
     environment:
       URL_API_POLITICAS: http://api-politicas:5000
       URL_API_CONSENTIMENTOS: http://api-consentimentos:5000
+      # URL do Mock IdP para simular login
+      URL_MOCK_IDP: http://mock-idp:5000
 
   smart-chatbot:
     build: ./smart-chatbot
@@ -67,6 +71,15 @@ services:
       URL_API_POLITICAS: http://api-politicas:5000
       URL_API_CONSENTIMENTOS: http://api-consentimentos:5000
 
+  # Container para simular o Provedor de Identidade (IdP)
+  mock-idp:
+    build: ./mock-idp
+    ports:
+      - "5005:5000" # Expondo na porta 5005 do seu ambiente local
+    volumes:
+      - ./mock-idp:/app
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-chave-super-secreta-para-a-poc}
   database:
     image: postgres:14-alpine
     environment:
@@ -77,8 +90,8 @@ services:
       POSTGRES_PORT: ${DB_PORT}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck: 
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
       interval: 5s
       timeout: 5s
       retries: 5
