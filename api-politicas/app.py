@@ -89,7 +89,7 @@ def create_policy():
         if existing:
             return jsonify({"error": "Uma política com este mesmo conteúdo (hash) já existe", "policy": existing.to_json()}), 409 # Conflict
 
-        # 3. Upload para o MinIO/S3
+      # 3. Upload para o MinIO/S3
         # Nome do objeto no bucket
         object_name = f"{hash_sha256}-{file.filename}" 
 
@@ -97,6 +97,14 @@ def create_policy():
         file.seek(0) 
 
         content_type = file.content_type or 'application/pdf'
+
+        # --- CÓDIGO NOVO: Verifica e cria o bucket se ele não existir ---
+        try:
+            s3_client.head_bucket(Bucket=minio_bucket)
+        except:
+            # Se der erro (bucket não existe), a API cria ele na hora
+            s3_client.create_bucket(Bucket=minio_bucket)
+        # ----------------------------------------------------------------
 
         s3_client.upload_fileobj(
             file,
