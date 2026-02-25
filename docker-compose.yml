@@ -22,12 +22,12 @@ services:
       storage:
         condition: service_started
     environment:
-      - DATABASE_URL=postgresql://user:password@database:5432/consentdb
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}
       - MINIO_URL=http://storage:9000
       - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL}
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET=politicas
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET=${MINIO_BUCKET}
 
   api-consentimentos:
     build: ./api-consentimentos
@@ -70,13 +70,15 @@ services:
   database:
     image: postgres:14-alpine
     environment:
-      POSTGRES_DB: consentdb
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_HOST: ${DB_HOST}
+      POSTGRES_PORT: ${DB_PORT}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck: # --- NOVO: Verifica se o banco aceita conexões ---
-      test: ["CMD-SHELL", "pg_isready -U user -d consentdb"]
+    healthcheck: 
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -89,8 +91,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
