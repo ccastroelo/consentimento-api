@@ -42,8 +42,8 @@ class Policies(db.Model):
     version = db.Column(db.String(20), nullable=False) # 'versao' [cite: 3374]
     published_at = db.Column(db.TIMESTAMP, server_default=db.func.now()) # 'criado_em' [cite: 3374]
     description = db.Column(db.Text, nullable=True) # 'descricao' [cite: 3374]
-    s3_url = db.Column(db.Text, nullable=False) # 's3_url' [cite: 3374]
-    hash_sha256 = db.Column(db.String(64), nullable=False, unique=True) # 'hash_sha256' [cite: 3374]
+    url = db.Column(db.Text, nullable=False) # 'url' [cite: 3374]
+    hash = db.Column(db.String(64), nullable=False, unique=True) # 'hash' [cite: 3374]
 
     def to_json(self):
         return {
@@ -51,8 +51,8 @@ class Policies(db.Model):
             'version': self.version,
             'published_at': self.published_at.isoformat(),
             'description': self.description,
-            's3_url': self.s3_url,
-            'hash_sha256': self.hash_sha256
+            'url': self.url,
+            'hash': self.hash
         }
 
 # -- CRIA AS TABELAS  ---
@@ -85,17 +85,17 @@ def create_policy():
         file_content = file.read()
 
         # 2. Calcular Hash (Integridade)
-        hash_sha256 = hashlib.sha256(file_content).hexdigest()
+        hash = hashlib.sha256(file_content).hexdigest()
 
         # Verifica se essa versão de hash já existe
-        existing = Policies.query.filter_by(hash_sha256=hash_sha256).first()
+        existing = Policies.query.filter_by(hash=hash).first()
         if existing:
             return jsonify({"error": "Uma política com este mesmo conteúdo (hash) já existe", "policy": existing.to_json()}), 409 # Conflict
 
       # 3. Upload para o MinIO/S3
         # Nome do objeto no bucket
         nome_seguro = secure_filename(file.filename)
-        object_name = f"{hash_sha256}-{nome_seguro}"
+        object_name = f"{hash}-{nome_seguro}"
 
         # Reposiciona o ponteiro do arquivo para o início antes do upload
         file.seek(0) 
@@ -134,14 +134,14 @@ def create_policy():
             }
         )
 
-        s3_url = f"{minio_url_public}/{minio_bucket}/{object_name}"
+        url = f"{minio_url_public}/{minio_bucket}/{object_name}"
 
         # 4. Salvar Metadados no PostgreSQL
         new_policy = Policies(
             version=version,
             description=description,
-            s3_url=s3_url,
-            hash_sha256=hash_sha256
+            url=url,
+            hash=hash
         )
         db.session.add(new_policy)
         db.session.commit()

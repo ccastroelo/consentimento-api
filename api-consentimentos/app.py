@@ -67,8 +67,8 @@ class Policies(db.Model):
     version = db.Column(db.String(20), nullable=False)
     published_at = db.Column(db.TIMESTAMP, server_default=db.func.now())
     description = db.Column(db.Text, nullable=True)
-    s3_url = db.Column(db.Text, nullable=False)
-    hash_sha256 = db.Column(db.String(64), nullable=False, unique=True)
+    url = db.Column(db.Text, nullable=False)
+    hash = db.Column(db.String(64), nullable=False, unique=True)
     consents = db.relationship('Consents', back_populates='policy')
 
     def to_json_brief(self):
