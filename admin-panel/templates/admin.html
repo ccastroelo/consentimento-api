@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestão de Políticas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-4">Gestão de Políticas de Privacidade</h2>
+        
+        {% if latest_policy %}
+            <div class="alert alert-info shadow-sm" role="alert">
+                <h4 class="alert-heading">Última Política Cadastrada</h4>
+                <p class="mb-1"><strong>Versão:</strong> {{ latest_policy.version }}</p>
+                <p class="mb-0"><strong>Data de Publicação:</strong> {{ latest_policy.published_at }}</p>
+            </div>
+        {% else %}
+            <div class="alert alert-warning shadow-sm" role="alert">
+                <h5 class="alert-heading m-0">Nenhuma política cadastrada ainda.</h5>
+            </div>
+        {% endif %}
+
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Cadastrar Nova Política</h5>
+            </div>
+            <div class="card-body">
+                <form action="/upload-policy" method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="version" class="form-label fw-bold">Versão (ex: 1.0.1):</label>
+                        <input type="text" class="form-control" id="version" name="version" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label fw-bold">Descrição das Mudanças (Opcional):</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label for="file" class="form-label fw-bold">Arquivo da Política (PDF, HTML, etc.):</label>
+                        <input type="file" class="form-control" id="file" name="file" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">Fazer Upload de Política</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

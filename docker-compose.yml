@@ -42,21 +42,19 @@ services:
       - JWT_SECRET=${JWT_SECRET:-chave-super-secreta-para-a-poc}
       - DATABASE_URL=postgresql://user:password@database:5432/consentdb
 
-  # Container para simular o Chatbot
-  app-chatbot:
-    build: ./app-chatbot
+  # Painel de Administração - Gestão de Políticas e Auditoria
+  admin-panel:
+    build: ./admin-panel
     ports:
       - "5003:5000"
     volumes:
-      - ./app-chatbot:/app
+      - ./admin-panel:/app
     depends_on:
       - api-politicas
       - api-consentimentos
     environment:
       URL_API_POLITICAS: http://api-politicas:5000
       URL_API_CONSENTIMENTOS: http://api-consentimentos:5000
-      # URL do Mock IdP para simular login
-      URL_MOCK_IDP: http://mock-idp:5000
 
   smart-chatbot:
     build: ./smart-chatbot

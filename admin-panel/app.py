@@ -9,52 +9,12 @@ app = Flask(__name__)
 URL_API_POLITICAS = os.environ.get('URL_API_POLITICAS')
 URL_API_CONSENTIMENTOS = os.environ.get('URL_API_CONSENTIMENTOS')
 
-# --- Rotas do Chatbot ---
+# --- Rotas do Admin Panel ---
 
 @app.route('/')
 def index():
-    """Serve a página principal do chatbot (o index.html)"""
-    return render_template('index.html')
-
-@app.route('/get-latest-policy', methods=['GET'])
-def get_latest_policy():
-    """
-    Endpoint de backend que o frontend (HTML) chama.
-    Ele repassa a chamada para a API de Políticas.
-    """
-    try:
-        # Chama a API de Políticas (comunicação interna do Docker)
-        response = requests.get(f"{URL_API_POLITICAS}/policies/latest")
-        response.raise_for_status() # Lança erro se a resposta não for 2xx
-        return jsonify(response.json()), response.status_code
-        
-    except requests.exceptions.RequestException as e:
-        # Trata erros de conexão ou se a API retornar erro
-        error_message = f"Erro ao contatar API de Políticas: {e}"
-        if e.response:
-            error_message = e.response.json().get('error', str(e))
-            return jsonify({"error": error_message}), e.response.status_code
-        return jsonify({"error": error_message}), 503 # Service Unavailable
-
-@app.route('/register-consent', methods=['POST'])
-def register_consent():
-    """
-    Endpoint de backend que o frontend (HTML) chama.
-    Ele repassa a chamada para a API de Consentimentos.
-    """
-    data = request.get_json()
-    try:
-        # Chama a API de Consentimentos (comunicação interna do Docker)
-        response = requests.post(f"{URL_API_CONSENTIMENTOS}/consents", json=data)
-        response.raise_for_status()
-        return jsonify(response.json()), response.status_code
-
-    except requests.exceptions.RequestException as e:
-        error_message = f"Erro ao contatar API de Consentimentos: {e}"
-        if e.response:
-            error_message = e.response.json().get('error', str(e))
-            return jsonify({"error": error_message}), e.response.status_code
-        return jsonify({"error": error_message}), 503
+    """Redireciona a raiz para a página de gestão de políticas"""
+    return redirect(url_for('admin_page'))
 
 
 # --- ROTAS DE ADMIN PARA UPLOAD DA POLÍTICA ---
@@ -140,8 +100,8 @@ def audit_page():
         return "ID de usuário não fornecido. Use a URL: /audit?user_id=123", 400
     consent_list = []
     try:
-        # Chama a API de Consentimentos (comunicação interna do Docker)
-        response = requests.get(f"{URL_API_CONSENTIMENTOS}/consents/user/{user_id}" )
+        # Chama a API de Consentimentos na rota administrativa (comunicação interna do Docker)
+        response = requests.get(f"{URL_API_CONSENTIMENTOS}/admin/consents/user/{user_id}" )
 
         if response.status_code == 200:
             consent_list = response.json() # Lista de logs

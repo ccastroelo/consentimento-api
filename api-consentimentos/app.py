@@ -174,6 +174,24 @@ def get_consents_by_policy(policy_id):
     # ... (código original mantido) ...
     pass # Coloque aqui o seu código original de get_consents_by_policy
 
+@app.route('/admin/consents/user/<int:user_id>', methods=['GET'])
+def admin_get_consents_by_user(user_id):
+    """Endpoint simplificado para auditoria do painel interno (admin-panel). Apenas leitura."""
+    try:
+        user = db.session.get(UserCrypto, user_id)
+        if not user or not user.secret_key:
+            return jsonify({"error": "Usuário não encontrado ou já foi anonimizado."}), 404
+
+        subject_pseudonym = generate_pseudonym(user.id_user, user.secret_key)
+        consents = Consents.query.options(joinedload(Consents.policy)).filter_by(subject_pseudonym=subject_pseudonym).order_by(Consents.created_at.desc()).all()
+        
+        if not consents:
+            return jsonify({"error": "Nenhum consentimento encontrado"}), 404
+            
+        return jsonify([c.to_json() for c in consents]), 200
+    except Exception as e:
+        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+
 @app.route('/users/<int:user_id>/forget', methods=['DELETE'])
 @token_required
 def forget_user(current_user_id, user_id):
