@@ -19,6 +19,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Chave secreta para assinar e validar os tokens JWT (Deve ir para o .env na AWS)
 app.config['JWT_SECRET'] = os.environ.get('JWT_SECRET', 'chave-super-secreta-para-a-poc')
+admin_token = os.environ.get('ADMIN_TOKEN', 'super-secret-admin-token-123')
 
 db = SQLAlchemy(app)
 
@@ -47,6 +48,21 @@ def token_required(f):
             
         # Injeta o ID extraído do token na função protegida
         return f(current_user_id, *args, **kwargs)
+    return decorated
+
+def admin_token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'Authorization' in request.headers:
+            parts = request.headers['Authorization'].split()
+            if len(parts) == 2 and parts[0] == 'Bearer':
+                token = parts[1]
+        
+        if not token or token != admin_token:
+            return jsonify({'error': 'Acesso negado: Token administrativo inválido ou ausente.'}), 401
+            
+        return f(*args, **kwargs)
     return decorated
 
 # --- Função de Crypto-Shredding ---
@@ -175,6 +191,7 @@ def get_consents_by_policy(policy_id):
     pass # Coloque aqui o seu código original de get_consents_by_policy
 
 @app.route('/admin/consents/user/<int:user_id>', methods=['GET'])
+@admin_token_required
 def admin_get_consents_by_user(user_id):
     """Endpoint simplificado para auditoria do painel interno (admin-panel). Apenas leitura."""
     try:

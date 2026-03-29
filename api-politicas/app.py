@@ -2,6 +2,7 @@ import os
 import hashlib
 import boto3
 import json
+from functools import wraps
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from botocore.client import Config
@@ -19,6 +20,7 @@ minio_url_public = os.environ.get('MINIO_PUBLIC_URL')
 minio_access_key = os.environ.get('MINIO_ACCESS_KEY')
 minio_secret_key = os.environ.get('MINIO_SECRET_KEY')
 minio_bucket = os.environ.get('MINIO_BUCKET', 'politicas')
+admin_token = os.environ.get('ADMIN_TOKEN', 'super-secret-admin-token-123')
 
 # Configura o SQLAlchemy (Banco de Dados)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
@@ -59,9 +61,26 @@ class Policies(db.Model):
 with app.app_context():
     db.create_all()
 
+# --- Segurança: Validação de ADMIN_TOKEN ---
+def admin_token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'Authorization' in request.headers:
+            parts = request.headers['Authorization'].split()
+            if len(parts) == 2 and parts[0] == 'Bearer':
+                token = parts[1]
+        
+        if not token or token != admin_token:
+            return jsonify({'error': 'Acesso negado: Token administrativo inválido ou ausente.'}), 401
+            
+        return f(*args, **kwargs)
+    return decorated
+
 # --- Endpoints da API ---
 
 @app.route('/policies', methods=['POST'])
+@admin_token_required
 def create_policy():
     """
     Endpoint para cadastrar uma nova política de privacidade.

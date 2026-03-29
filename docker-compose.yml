@@ -28,6 +28,7 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - MINIO_BUCKET=${MINIO_BUCKET}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-super-secret-admin-token-123}
 
   api-consentimentos:
     build: ./api-consentimentos
@@ -41,6 +42,7 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET:-chave-super-secreta-para-a-poc}
       - DATABASE_URL=postgresql://user:password@database:5432/consentdb
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-super-secret-admin-token-123}
 
   # Painel de Administração - Gestão de Políticas e Auditoria
   admin-panel:
@@ -55,6 +57,7 @@ services:
     environment:
       URL_API_POLITICAS: http://api-politicas:5000
       URL_API_CONSENTIMENTOS: http://api-consentimentos:5000
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-super-secret-admin-token-123}
 
   smart-chatbot:
     build: ./smart-chatbot

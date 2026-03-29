@@ -8,6 +8,7 @@ app = Flask(__name__)
 # Pega as URLs das APIs a partir das variáveis de ambiente
 URL_API_POLITICAS = os.environ.get('URL_API_POLITICAS')
 URL_API_CONSENTIMENTOS = os.environ.get('URL_API_CONSENTIMENTOS')
+ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', 'super-secret-admin-token-123')
 
 # --- Rotas do Admin Panel ---
 
@@ -69,10 +70,12 @@ def upload_policy_proxy():
         }
 
         # 3. Chamar a api-politicas (interna do Docker)
+        headers = {'Authorization': f'Bearer {ADMIN_TOKEN}'}
         response = requests.post(
             f"{URL_API_POLITICAS}/policies",
             files=proxied_files,
-            data=form_data
+            data=form_data,
+            headers=headers
         )
 
         # Lança um erro se a api-politicas falhar
@@ -101,7 +104,11 @@ def audit_page():
     consent_list = []
     try:
         # Chama a API de Consentimentos na rota administrativa (comunicação interna do Docker)
-        response = requests.get(f"{URL_API_CONSENTIMENTOS}/admin/consents/user/{user_id}" )
+        headers = {'Authorization': f'Bearer {ADMIN_TOKEN}'}
+        response = requests.get(
+            f"{URL_API_CONSENTIMENTOS}/admin/consents/user/{user_id}",
+            headers=headers
+        )
 
         if response.status_code == 200:
             consent_list = response.json() # Lista de logs
