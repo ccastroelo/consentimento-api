@@ -27,26 +27,26 @@ db = SQLAlchemy(app)
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = None
-        # Verifica se o cabeçalho Authorization está presente
-        if 'Authorization' in request.headers:
-            parts = request.headers['Authorization'].split()
-            if len(parts) == 2 and parts[0] == 'Bearer':
-                token = parts[1]
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Esquema de autenticação inválido. Use Bearer token.'}), 401
         
-        if not token:
-            return jsonify({'error': 'Acesso negado: Token de autenticação ausente.'}), 401
+        token = auth_header.split(" ")[1]
         
         try:
-            # Decodifica o token para extrair a identidade real do usuário
-            data = jwt.decode(token, app.config['JWT_SECRET'], algorithms=["HS256"])
+            # Exigir claims específicas para conformidade (ex: aud, iss)
+            data = jwt.decode(
+                token, 
+                app.config['JWT_SECRET'], 
+                algorithms=["HS256"],
+                options={"require": ["exp", "iat", "user_id"]}
+            )
             current_user_id = data['user_id']
         except jwt.ExpiredSignatureError:
-            return jsonify({'error': 'Acesso negado: Token expirado.'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'error': 'Acesso negado: Token inválido.'}), 401
+            return jsonify({'error': 'Token expirado.'}), 401
+        except jwt.InvalidTokenError as e:
+            return jsonify({'error': f'Token inválido: {str(e)}'}), 401
             
-        # Injeta o ID extraído do token na função protegida
         return f(current_user_id, *args, **kwargs)
     return decorated
 
@@ -66,8 +66,8 @@ def admin_token_required(f):
     return decorated
 
 # --- Função de Crypto-Shredding ---
-def generate_pseudonym(user_id: int, secret_key: str) -> str:
-    key_bytes = secret_key.encode('utf-8')
+def generate_pseudonym(user_id: int, salt: str) -> str:
+    key_bytes = salt.encode('utf-8')
     msg_bytes = str(user_id).encode('utf-8')
     return hmac.new(key_bytes, msg_bytes, hashlib.sha256).hexdigest()
 
@@ -75,7 +75,7 @@ def generate_pseudonym(user_id: int, secret_key: str) -> str:
 class UserCrypto(db.Model):
     __tablename__ = "users_crypto"    
     id_user = db.Column(db.Integer, primary_key=True, index=True) 
-    secret_key = db.Column(db.String, default=lambda: secrets.token_hex(32), nullable=True)
+    salt = db.Column(db.String, default=lambda: secrets.token_hex(32), nullable=False)
 
 class Policies(db.Model):
     __tablename__ = 'policies'
@@ -120,15 +120,13 @@ def create_consent(current_user_id):
     """Registra o consentimento validando a identidade do token."""
     data = request.get_json()
     
-    if not data or 'id_user' not in data or 'id_policy' not in data or 'channel' not in data or 'status' not in data:
-        return jsonify({"error": "Dados incompletos"}), 400
-
-    # A REGRA DE OURO DA AUTORIZAÇÃO: O ID do corpo do JSON deve casar com o ID do Token assinado.
-    if int(data['id_user']) != int(current_user_id):
-        return jsonify({"error": "Conflito de Identidade: O titular do token não tem permissão para assinar por outro usuário."}), 403
+    # Validação rigorosa de esquema sem exigir id_user no body para máxima segurança
+    required_fields = ['id_policy', 'channel', 'status']
+    if not data or not all(field in data for field in required_fields):
+        return jsonify({"error": "Campos obrigatórios ausentes"}), 400
 
     try:
-        id_user = int(current_user_id) # Usamos a identidade validada criptograficamente
+        id_user = int(current_user_id) # Identidade carimbada garantida pelo rigor do novo Token JWT
         id_policy = data['id_policy']
         channel = data['channel']
         status = data['status']
@@ -139,10 +137,10 @@ def create_consent(current_user_id):
             db.session.add(user)
             db.session.commit()
             
-        if not user.secret_key:
-            return jsonify({"error": "Titular anonimizado. Não é possível registrar novos dados."}), 403
+        # Bloqueio removido: Caso o usuário tenha sido deletado numa operação de esquecimento,
+        # o bloco acima passará a tratá-lo como um 'novo' usuário, gerando um novo salt aleatório nativamente.
 
-        subject_pseudonym = generate_pseudonym(user.id_user, user.secret_key)
+        subject_pseudonym = generate_pseudonym(user.id_user, user.salt)
         
         policy_exists = db.session.get(Policies, id_policy)
         if not policy_exists:
@@ -171,10 +169,10 @@ def get_consents_by_user(current_user_id, user_id):
 
     try:
         user = db.session.get(UserCrypto, user_id)
-        if not user or not user.secret_key:
+        if not user:
             return jsonify({"error": "Usuário não encontrado ou já foi anonimizado."}), 404
 
-        subject_pseudonym = generate_pseudonym(user.id_user, user.secret_key)
+        subject_pseudonym = generate_pseudonym(user.id_user, user.salt)
         consents = Consents.query.options(joinedload(Consents.policy)).filter_by(subject_pseudonym=subject_pseudonym).order_by(Consents.created_at.desc()).all()
         
         if not consents:
@@ -196,10 +194,10 @@ def admin_get_consents_by_user(user_id):
     """Endpoint simplificado para auditoria do painel interno (admin-panel). Apenas leitura."""
     try:
         user = db.session.get(UserCrypto, user_id)
-        if not user or not user.secret_key:
+        if not user:
             return jsonify({"error": "Usuário não encontrado ou já foi anonimizado."}), 404
 
-        subject_pseudonym = generate_pseudonym(user.id_user, user.secret_key)
+        subject_pseudonym = generate_pseudonym(user.id_user, user.salt)
         consents = Consents.query.options(joinedload(Consents.policy)).filter_by(subject_pseudonym=subject_pseudonym).order_by(Consents.created_at.desc()).all()
         
         if not consents:
@@ -218,13 +216,14 @@ def forget_user(current_user_id, user_id):
 
     try:
         user = db.session.get(UserCrypto, user_id)
-        if not user or not user.secret_key:
-            return jsonify({"message": "Usuário já anonimizado ou inexistente."}), 404
+        if not user:
+            return jsonify({"message": "Usuário inexistente ou já anonimizado."}), 404
         
-        user.secret_key = None
+        # O grande pulo do gato: Deleção Física (Crypto-shredding + Apagamento de Identidade)
+        db.session.delete(user)
         db.session.commit()
         
-        return jsonify({"message": "Direito ao Esquecimento aplicado."}), 200
+        return jsonify({"message": "Direito ao Esquecimento aplicado com sucesso. O titular foi removido da base criptográfica."}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
