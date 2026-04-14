@@ -39,10 +39,13 @@ services:
     depends_on:
       database:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - JWT_SECRET=${JWT_SECRET:-chave-super-secreta-para-a-poc}
       - DATABASE_URL=postgresql://user:password@database:5432/consentdb
       - ADMIN_TOKEN=${ADMIN_TOKEN:-super-secret-admin-token-123}
+      - REDIS_URL=redis://redis:6379
 
   # Painel de Administração - Gestão de Políticas e Auditoria
   admin-panel:
@@ -111,6 +114,77 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
 
+  # ---------------------------------------------------------------------------
+  # Auditoria — Redis Stream + Vault (File Storage) + Audit Engine
+  # ---------------------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Vault com File Storage persistente.
+  # Chaves Transit sobrevivem a restarts via volume vault_data.
+  vault:
+    image: hashicorp/vault:1.15
+    cap_add:
+      - IPC_LOCK                        # Previne swap de memória (segurança)
+    ports:
+      - "8200:8200"                     # Exposto para acesso administrativo local
+    volumes:
+      - vault_data:/vault/data          # Persistência das chaves Transit
+      - ./audit-engine/vault-config:/vault/config
+    command: vault server -config=/vault/config/vault.hcl
+    environment:
+      - VAULT_ADDR=http://127.0.0.1:8200
+    healthcheck:
+      test: ["CMD-SHELL", "vault status 2>&1 | grep -q 'Seal Type'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  # Container one-shot: inicializa o Vault na 1ª execução e unsela em todo restart.
+  # Habilita o Transit Engine após o unseal.
+  # Encerra com código 0 quando tudo está pronto.
+  vault-init:
+    image: hashicorp/vault:1.15
+    depends_on:
+      vault:
+        condition: service_healthy
+    volumes:
+      - vault_data:/vault/data          # Lê/escreve init.json com unseal keys
+      - ./audit-engine/vault-init.sh:/vault-init.sh
+    environment:
+      - VAULT_ADDR=http://vault:8200
+    command: sh /vault-init.sh
+    restart: on-failure
+
+  # Worker de auditoria — só sobe após banco + Redis + Vault estarem prontos.
+  audit-engine:
+    build: ./audit-engine
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault_data:/vault/data:ro       # Leitura do root token em init.json
+    environment:
+      - DATABASE_URL=postgresql://user:password@database:5432/consentdb
+      - REDIS_URL=redis://redis:6379
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_INIT_FILE=/vault/data/init.json
+
+
 volumes:
   postgres_data:
   minio_data:
+  vault_data:                           # Chaves Transit do Vault (persistentes)

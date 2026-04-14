@@ -3,6 +3,7 @@ import jwt
 import hmac
 import hashlib
 import secrets
+import redis as redis_lib
 from functools import wraps
 from datetime import datetime
 from flask import Flask, request, jsonify
@@ -22,6 +23,40 @@ app.config['JWT_SECRET'] = os.environ.get('JWT_SECRET', 'chave-super-secreta-par
 admin_token = os.environ.get('ADMIN_TOKEN', 'super-secret-admin-token-123')
 
 db = SQLAlchemy(app)
+
+# --- Cliente Redis para publicar eventos de auditoria ---
+# Inicializado de forma lazy e tolerante a falhas.
+# Se o Redis estiver indisponível, o fluxo de consentimento NÃO é interrompido.
+_redis_url = os.environ.get('REDIS_URL', 'redis://redis:6379')
+_audit_queue = None
+
+def _get_audit_queue():
+    """Retorna o cliente Redis, inicializando na primeira chamada."""
+    global _audit_queue
+    if _audit_queue is None:
+        try:
+            _audit_queue = redis_lib.from_url(
+                _redis_url,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+            )
+            _audit_queue.ping()
+        except Exception as e:
+            app.logger.warning(f"Redis: audit queue indisponível: {e}")
+            _audit_queue = None
+    return _audit_queue
+
+def publish_audit(event: dict):
+    """Publica evento no Redis Stream. Não-bloqueante e tolerante a falhas."""
+    try:
+        q = _get_audit_queue()
+        if q:
+            q.xadd('audit:consent_events', event)
+    except Exception as e:
+        app.logger.warning(f"Audit publish failed: {e}")
+        # Reset para tentar reconectar na próxima chamada
+        global _audit_queue
+        _audit_queue = None
 
 # --- Decorator de Segurança (O Pulo do Gato Acadêmico) ---
 def token_required(f):
@@ -155,6 +190,14 @@ def create_consent(current_user_id):
         db.session.commit()
         db.session.refresh(new_consent)
 
+        # --- Publica evento de auditoria (não-bloqueante) ---
+        publish_audit({
+            b'event_type': b'CONSENT_CREATED',
+            b'id_user':    str(id_user).encode(),
+            b'pass':       subject_pseudonym.encode(),
+            b'consent_id': str(new_consent.id).encode(),
+        })
+
         return jsonify({"message": "Consentimento registrado com sucesso!", "consent": new_consent.to_json()}), 201
     except Exception as e:
         db.session.rollback()
@@ -218,11 +261,23 @@ def forget_user(current_user_id, user_id):
         user = db.session.get(UserCrypto, user_id)
         if not user:
             return jsonify({"message": "Usuário inexistente ou já anonimizado."}), 404
-        
+
+        # Captura o pseudônimo ANTES de deletar o registro
+        subject_pseudonym = generate_pseudonym(user.id_user, user.salt)
+
+        # --- Publica evento de esquecimento ANTES do delete ---
+        # O audit-engine irá executar o crypto-shredding da chave no Vault.
+        # O consentimento do usuário será registrado como deletado no log.
+        publish_audit({
+            b'event_type': b'USER_FORGOTTEN',
+            b'id_user':    str(user_id).encode(),
+            b'pass':       subject_pseudonym.encode(),
+        })
+
         # O grande pulo do gato: Deleção Física (Crypto-shredding + Apagamento de Identidade)
         db.session.delete(user)
         db.session.commit()
-        
+
         return jsonify({"message": "Direito ao Esquecimento aplicado com sucesso. O titular foi removido da base criptográfica."}), 200
     except Exception as e:
         db.session.rollback()
