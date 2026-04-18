@@ -3,11 +3,11 @@ import jwt
 import hmac
 import hashlib
 import secrets
-import redis as redis_lib
 from functools import wraps
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event
 from sqlalchemy.orm import joinedload
 
 # --- Configuração Inicial ---
@@ -23,40 +23,6 @@ app.config['JWT_SECRET'] = os.environ.get('JWT_SECRET', 'chave-super-secreta-par
 admin_token = os.environ.get('ADMIN_TOKEN', 'super-secret-admin-token-123')
 
 db = SQLAlchemy(app)
-
-# --- Cliente Redis para publicar eventos de auditoria ---
-# Inicializado de forma lazy e tolerante a falhas.
-# Se o Redis estiver indisponível, o fluxo de consentimento NÃO é interrompido.
-_redis_url = os.environ.get('REDIS_URL', 'redis://redis:6379')
-_audit_queue = None
-
-def _get_audit_queue():
-    """Retorna o cliente Redis, inicializando na primeira chamada."""
-    global _audit_queue
-    if _audit_queue is None:
-        try:
-            _audit_queue = redis_lib.from_url(
-                _redis_url,
-                socket_connect_timeout=2,
-                socket_timeout=2,
-            )
-            _audit_queue.ping()
-        except Exception as e:
-            app.logger.warning(f"Redis: audit queue indisponível: {e}")
-            _audit_queue = None
-    return _audit_queue
-
-def publish_audit(event: dict):
-    """Publica evento no Redis Stream. Não-bloqueante e tolerante a falhas."""
-    try:
-        q = _get_audit_queue()
-        if q:
-            q.xadd('audit:consent_events', event)
-    except Exception as e:
-        app.logger.warning(f"Audit publish failed: {e}")
-        # Reset para tentar reconectar na próxima chamada
-        global _audit_queue
-        _audit_queue = None
 
 # --- Decorator de Segurança (O Pulo do Gato Acadêmico) ---
 def token_required(f):
@@ -111,6 +77,13 @@ class UserCrypto(db.Model):
     __tablename__ = "users_crypto"    
     id_user = db.Column(db.Integer, primary_key=True, index=True) 
     salt = db.Column(db.String, default=lambda: secrets.token_hex(32), nullable=False)
+    pending_deletion = db.Column(db.Boolean, default=False)
+    last_consent_hash = db.Column(db.String(64), nullable=True) # Ponteiro para o topo da cadeia
+    version = db.Column(db.Integer, default=1, nullable=False)
+
+    __mapper_args__ = {
+        "version_id_col": version
+    }
 
 class Policies(db.Model):
     __tablename__ = 'policies'
@@ -129,12 +102,19 @@ class Consents(db.Model):
     __tablename__ = 'consents'
     id = db.Column(db.Integer, primary_key=True, index=True) 
     subject_pseudonym = db.Column(db.String(64), index=True, nullable=False)
-    id_policy = db.Column(db.Integer, db.ForeignKey('policies.id'), nullable=False) 
+    id_policy = db.Column(db.Integer, db.ForeignKey('policies.id'), nullable=True) 
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow) 
     channel = db.Column(db.String(50), nullable=False) 
     validation_hash = db.Column(db.String(64), nullable=False, unique=True) 
     status = db.Column(db.String(20), nullable=False, default='given')
+    version = db.Column(db.Integer, default=1, nullable=False)
+    parent_hash = db.Column(db.String(64), nullable=True) # Hash do registro anterior
+    sequence_version = db.Column(db.Integer, nullable=False) # Prova de Auditoria (Sincronizada com UserCrypto.version)
     policy = db.relationship('Policies', back_populates='consents')
+
+    __mapper_args__ = {
+        "version_id_col": version
+    }
 
     def to_json(self):
         return {
@@ -143,6 +123,13 @@ class Consents(db.Model):
             'validation_hash': self.validation_hash, 'status': self.status,
             'policy_info': self.policy.to_json_brief() if self.policy else None
         }
+
+# --- Garantia de Append-Only (Integridade de Auditoria) ---
+def prevent_audit_mutation(mapper, connection, target):
+    raise Exception('Operação estritamente proibida: a tabela de auditoria é Append-Only')
+
+event.listen(Consents, 'before_update', prevent_audit_mutation)
+event.listen(Consents, 'before_delete', prevent_audit_mutation)
 
 with app.app_context():
     db.create_all()
@@ -181,22 +168,32 @@ def create_consent(current_user_id):
         if not policy_exists:
             return jsonify({"error": f"Política não encontrada"}), 404
 
+        # --- Lógica de Cadeia de Hashes (Integridade Linear) ---
+        parent_hash = user.last_consent_hash
         timestamp = datetime.utcnow()
-        hash_input = f"{subject_pseudonym}:{id_policy}:{timestamp.isoformat()}:{channel}:{status}"
+        
+        # O hash agora inclui o parent_hash, vinculando este registro ao anterior
+        hash_input = f"{subject_pseudonym}:{id_policy}:{timestamp.isoformat()}:{channel}:{status}:{parent_hash}"
         validation_hash = hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
 
-        new_consent = Consents(subject_pseudonym=subject_pseudonym, id_policy=id_policy, channel=channel, validation_hash=validation_hash, created_at=timestamp, status=status)
+        new_consent = Consents(
+            subject_pseudonym=subject_pseudonym, 
+            id_policy=id_policy, 
+            channel=channel, 
+            validation_hash=validation_hash, 
+            created_at=timestamp, 
+            status=status,
+            parent_hash=parent_hash, # Registra o elo da cadeia
+            sequence_version=user.version # Captura a versão atual do usuário como prova de auditoria
+        )
+        
+        # Atualiza o ponteiro no usuário. O version_id_col no UserCrypto 
+        # incrementará automaticamente a versão do usuário no commit.
+        user.last_consent_hash = validation_hash
+        
         db.session.add(new_consent)
         db.session.commit()
         db.session.refresh(new_consent)
-
-        # --- Publica evento de auditoria (não-bloqueante) ---
-        publish_audit({
-            b'event_type': b'CONSENT_CREATED',
-            b'id_user':    str(id_user).encode(),
-            b'pass':       subject_pseudonym.encode(),
-            b'consent_id': str(new_consent.id).encode(),
-        })
 
         return jsonify({"message": "Consentimento registrado com sucesso!", "consent": new_consent.to_json()}), 201
     except Exception as e:
@@ -262,23 +259,16 @@ def forget_user(current_user_id, user_id):
         if not user:
             return jsonify({"message": "Usuário inexistente ou já anonimizado."}), 404
 
-        # Captura o pseudônimo ANTES de deletar o registro
+        # Captura o pseudônimo ANTES de marcar para deleção (para referência no log de auditoria se necessário)
         subject_pseudonym = generate_pseudonym(user.id_user, user.salt)
 
-        # --- Publica evento de esquecimento ANTES do delete ---
-        # O audit-engine irá executar o crypto-shredding da chave no Vault.
-        # O consentimento do usuário será registrado como deletado no log.
-        publish_audit({
-            b'event_type': b'USER_FORGOTTEN',
-            b'id_user':    str(user_id).encode(),
-            b'pass':       subject_pseudonym.encode(),
-        })
-
-        # O grande pulo do gato: Deleção Física (Crypto-shredding + Apagamento de Identidade)
-        db.session.delete(user)
+        # O grande pulo do gato: Deleção Diferida (Soft-Delete para processamento assíncrono)
+        # O worker.py irá detectar este flag, executar o crypto-shredding no Vault 
+        # e então realizar a deleção física do registro UserCrypto.
+        user.pending_deletion = True
         db.session.commit()
 
-        return jsonify({"message": "Direito ao Esquecimento aplicado com sucesso. O titular foi removido da base criptográfica."}), 200
+        return jsonify({"message": "Direito ao Esquecimento solicitado. O titular foi marcado para anonimização definitiva pelo Worker."}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500

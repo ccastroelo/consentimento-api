@@ -16,3 +16,4 @@ tomli==2.4.0
 typing_extensions==4.15.0
 Werkzeug==3.1.6
 PyJWT==2.10.1
+hvac==2.1.0
