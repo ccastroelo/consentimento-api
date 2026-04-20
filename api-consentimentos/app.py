@@ -9,6 +9,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
 from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.exc import StaleDataError
 
 # --- Configuração Inicial ---
 app = Flask(__name__)
@@ -196,6 +197,12 @@ def create_consent(current_user_id):
         db.session.refresh(new_consent)
 
         return jsonify({"message": "Consentimento registrado com sucesso!", "consent": new_consent.to_json()}), 201
+    except StaleDataError:
+        db.session.rollback()
+        # Tratamento limpo para o Bloqueio Otimista (Optimistic Locking)
+        return jsonify({
+            "error": "Ocorreu um erro na gravação, tente novamente."
+        }), 409
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
