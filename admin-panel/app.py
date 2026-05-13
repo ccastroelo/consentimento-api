@@ -86,8 +86,12 @@ def upload_policy_proxy():
 
     except requests.exceptions.RequestException as e:
         # Se a api-politicas der erro (ex: hash duplicado), mostra o erro
-        if e.response:
-            return f"Erro ao enviar para API de Políticas: {e.response.json().get('error', str(e))}", e.response.status_code
+        if e.response is not None:
+            try:
+                error_msg = e.response.json().get('error', str(e))
+            except ValueError:
+                error_msg = e.response.text
+            return f"Erro ao enviar para API de Políticas: {error_msg}", e.response.status_code
         return f"Erro de conexão com a API de Políticas: {str(e)}", 503
     except Exception as e:
         return f"Erro interno no proxy: {str(e)}", 500
@@ -120,8 +124,11 @@ def audit_page():
             response.raise_for_status() 
     except requests.exceptions.RequestException as e:
         error_message = f"Erro ao contatar API de Consentimentos: {str(e)}"
-        if e.response:
-            error_message = e.response.json().get('error', str(e))
+        if e.response is not None:
+            try:
+                error_message = e.response.json().get('error', str(e))
+            except ValueError:
+                error_message = e.response.text
         return error_message, 503
     # Renderiza o novo template 'audit.html', passando as variáveis
     return render_template('audit.html', user_id=user_id, consents=consent_list)
