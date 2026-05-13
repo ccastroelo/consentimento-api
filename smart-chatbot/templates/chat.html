@@ -293,7 +293,7 @@
 
                 if (response.ok && policy.id) {
                     currentPolicyId = policy.id;
-                    const link = `<a href="${policy.s3_url}" target="_blank" style="color: #007bff; font-weight: bold;">Documento Oficial (v${policy.version})</a>`;
+                    const link = `<a href="${policy.url}" target="_blank" style="color: #007bff; font-weight: bold;">Documento Oficial (v${policy.version})</a>`;
 
                     await botReply(`A versão atual é a <b>${policy.version}</b>.<br><br>Por favor, leia atentamente: <br>${link}`);
 
