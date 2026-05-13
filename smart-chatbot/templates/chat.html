@@ -357,6 +357,7 @@
             menuDiv.className = "action-container";
             menuDiv.id = "privacy-menu";
             menuDiv.innerHTML = `
+        <button class="action-btn btn-reject" onclick="revokeConsent()">Revogar Consentimento</button>
         <button class="action-btn btn-history" onclick="fetchHistory()">Consultar Histórico</button>
         <button class="action-btn btn-forget" onclick="forgetUser()">Esquecer os Meus Dados</button>
     `;
@@ -367,6 +368,40 @@
         function removePrivacyMenu() {
             const menu = document.getElementById('privacy-menu');
             if (menu) menu.remove();
+        }
+
+        window.revokeConsent = async function() {
+            removePrivacyMenu();
+            addMessage("Desejo revogar o meu consentimento para a política atual.", 'user');
+            await botReply("A registar a revogação do seu consentimento...");
+            
+            try {
+                const response = await fetch('/api/consent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id_user: userId,
+                        id_policy: currentPolicyId,
+                        channel: 'smart_chatbot_web',
+                        status: 'refused'
+                    })
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    await botReply(`✅ <b>Auditoria Concluída</b><br>O seu consentimento foi revogado. Os serviços serão limitados.<br>Hash de Validação:<br><span style="font-size: 11px; word-break: break-all; color: #555;">${result.validation_hash || result.consent?.validation_hash}</span>`);
+                    renderPrivacyMenu();
+                } else if (response.status === 401 || response.status === 403) {
+                    await botReply(`⛔ <b>Acesso Recusado:</b> ${result.error}`);
+                    renderPrivacyMenu();
+                } else {
+                    await botReply(`⚠️ Erro na transação: ${result.error}`);
+                    renderPrivacyMenu();
+                }
+            } catch (e) {
+                await botReply("⚠️ Ocorreu uma falha ao contactar o motor de base de dados.");
+                renderPrivacyMenu();
+            }
         }
 
         window.fetchHistory = async function () {
