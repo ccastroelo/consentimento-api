@@ -437,7 +437,15 @@
                     let historyHtml = "<b>Os seus Registos:</b><br><br>";
                     result.forEach(item => {
                         const date = new Date(item.created_at).toLocaleString('pt-PT');
-                        historyHtml += `Status: <b>${item.status.toUpperCase()}</b><br>Data: ${date}<br>Canal: ${item.channel}<br><hr style="border: 0.5px solid #ccc;">`;
+                        const statusColor = item.status === 'given' ? 'green' : (item.status === 'refused' ? 'red' : 'orange');
+                        const statusText = item.status === 'given' ? 'Aceite' : (item.status === 'refused' ? 'Recusado' : item.status);
+                        
+                        let policyInfo = '';
+                        if (item.policy_info) {
+                            policyInfo = `<br>Política: <a href="${item.policy_info.url}" target="_blank" style="color: #007bff; text-decoration: underline;">v${item.policy_info.version} (ID: ${item.policy_info.id})</a>`;
+                        }
+
+                        historyHtml += `Status: <b style="color: ${statusColor}">${statusText}</b><br>Data: ${date}<br>Canal: ${item.channel}${policyInfo}<br><hr style="border: 0.5px solid #ccc;">`;
                     });
                     await botReply(historyHtml);
                     renderPrivacyMenu();

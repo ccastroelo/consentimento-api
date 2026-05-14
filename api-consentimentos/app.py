@@ -97,7 +97,7 @@ class Policies(db.Model):
     consents = db.relationship('Consents', back_populates='policy')
 
     def to_json_brief(self):
-        return {'id': self.id, 'version': self.version, 'published_at': self.published_at.isoformat() if self.published_at else None}
+        return {'id': self.id, 'version': self.version, 'url': self.url, 'published_at': self.published_at.isoformat() if self.published_at else None}
 
 class Consents(db.Model):
     __tablename__ = 'consents'
