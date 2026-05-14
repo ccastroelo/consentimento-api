@@ -293,19 +293,39 @@
 
                 if (response.ok && policy.id) {
                     currentPolicyId = policy.id;
-                    const link = `<a href="${policy.url}" target="_blank" style="color: #007bff; font-weight: bold;">Documento Oficial (v${policy.version})</a>`;
+                    
+                    let alreadyAccepted = false;
+                    try {
+                        const histResp = await fetch(`/api/consent/history/${userId}`);
+                        if (histResp.ok) {
+                            const history = await histResp.json();
+                            const latestConsent = history.find(c => c.id_policy === currentPolicyId);
+                            if (latestConsent && latestConsent.status === 'given') {
+                                alreadyAccepted = true;
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Erro ao verificar histórico:", e);
+                    }
 
-                    await botReply(`A versão atual é a <b>${policy.version}</b>.<br><br>Por favor, leia atentamente: <br>${link}`);
+                    if (alreadyAccepted) {
+                        await botReply(`✅ Identificamos que já aceitou a Política de Privacidade atual (v${policy.version}). Como posso ajudar?`);
+                        renderPrivacyMenu();
+                    } else {
+                        const link = `<a href="${policy.url}" target="_blank" style="color: #007bff; font-weight: bold;">Documento Oficial (v${policy.version})</a>`;
 
-                    const actionDiv = document.createElement('div');
-                    actionDiv.className = "action-container";
-                    actionDiv.id = "consent-actions";
-                    actionDiv.innerHTML = `
-                <button class="action-btn btn-reject" onclick="submitConsent(false)">Recusar Termos</button>
-                <button class="action-btn btn-accept" onclick="submitConsent(true)">Aceitar Política</button>
-            `;
-                    chatArea.insertBefore(actionDiv, typingIndicator);
-                    chatArea.scrollTop = chatArea.scrollHeight;
+                        await botReply(`A versão atual é a <b>${policy.version}</b>.<br><br>Por favor, leia atentamente: <br>${link}`);
+
+                        const actionDiv = document.createElement('div');
+                        actionDiv.className = "action-container";
+                        actionDiv.id = "consent-actions";
+                        actionDiv.innerHTML = `
+                    <button class="action-btn btn-reject" onclick="submitConsent(false)">Recusar Termos</button>
+                    <button class="action-btn btn-accept" onclick="submitConsent(true)">Aceitar Política</button>
+                `;
+                        chatArea.insertBefore(actionDiv, typingIndicator);
+                        chatArea.scrollTop = chatArea.scrollHeight;
+                    }
                 } else {
                     await botReply("❌ Erro: Nenhuma política ativa encontrada no servidor.");
                 }
