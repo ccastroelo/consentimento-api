@@ -199,6 +199,48 @@ def get_all_policies():
     except Exception as e:
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
 
+@app.route('/policies/<int:policy_id>/verify', methods=['GET'])
+@admin_token_required
+def verify_policy_hash(policy_id):
+    """
+    Endpoint para verificar a integridade física de uma política no MinIO.
+    """
+    try:
+        policy = db.session.get(Policies, policy_id)
+        if not policy:
+            return jsonify({"error": "Política não encontrada"}), 404
+             
+        # O URL no BD é no formato: http://{public_url}/{bucket}/{object_name}
+        # O object_name é tudo que vem depois de "/{minio_bucket}/"
+        parts = policy.url.split(f"/{minio_bucket}/")
+        if len(parts) < 2:
+            return jsonify({"error": "URL da política malformada ou inesperada"}), 500
+        
+        object_name = parts[-1]
+        
+        try:
+            # Baixa o objeto real do S3/MinIO
+            response = s3_client.get_object(Bucket=minio_bucket, Key=object_name)
+            file_content = response['Body'].read()
+            
+            # Calcula o hash SHA256 sobre os bytes baixados
+            calculated_hash = hashlib.sha256(file_content).hexdigest()
+            
+            is_valid = (calculated_hash == policy.hash)
+            
+            return jsonify({
+                "policy_id": policy.id,
+                "version": policy.version,
+                "stored_hash": policy.hash,
+                "calculated_hash": calculated_hash,
+                "is_valid": is_valid
+            }), 200
+        except s3_client.exceptions.NoSuchKey:
+            return jsonify({"error": "Arquivo não encontrado no Storage (MinIO)"}), 404
+            
+    except Exception as e:
+        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+
 # --- Ponto de Partida ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

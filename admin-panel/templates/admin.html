@@ -19,6 +19,34 @@
             </div>
         {% endif %}
 
+        {% if adherence_data and adherence_data.total_users > 0 %}
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-bar-chart-fill"></i> Aderência às Políticas</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-4"><strong>Total de Titulares Ativos:</strong> {{ adherence_data.total_users }}</p>
+                {% for item in adherence_data.adherence %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Versão: <strong>{{ item.version }}</strong> ({{ item.users_count }} titulares)</span>
+                        <span class="fw-bold">{{ item.percentage }}%</span>
+                    </div>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar {% if item.policy_id is none %}bg-danger{% else %}bg-success{% endif %}" 
+                             role="progressbar" 
+                             style="width: {{ item.percentage }}%;" 
+                             aria-valuenow="{{ item.percentage }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <div class="card shadow-sm mt-4">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">Cadastrar Nova Política</h5>
@@ -43,6 +71,71 @@
                 </form>
             </div>
         </div>
+        <div class="card shadow-sm mt-4 mb-5">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Histórico e Verificação de Integridade</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if all_policies %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Versão</th>
+                                <th>Data de Publicação</th>
+                                <th>Hash (Armazenado)</th>
+                                <th class="text-end">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for policy in all_policies %}
+                            <tr>
+                                <td class="align-middle fw-bold">{{ policy.version }}</td>
+                                <td class="align-middle">{{ policy.published_at.split('T')[0] }}</td>
+                                <td class="align-middle"><small class="text-muted text-break" style="max-width: 200px; display: inline-block;">{{ policy.hash }}</small></td>
+                                <td class="text-end align-middle">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="verifyPolicyHash({{ policy.id }})">
+                                        Verificar Hash
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-3 text-center text-muted">
+                    Nenhuma política no histórico.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
     </div>
 </div>
+
+<script>
+async function verifyPolicyHash(policyId) {
+    try {
+        const response = await fetch(`/verify-policy/${policyId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (data.is_valid) {
+                alert(`INTEGRIDADE CONFIRMADA!\n\nA versão ${data.version} é autêntica.\n\nHash Calculado (MinIO): ${data.calculated_hash}\nHash Armazenado (DB): ${data.stored_hash}`);
+            } else {
+                alert(`ALERTA DE SEGURANÇA: INTEGRIDADE COMPROMETIDA!\n\nA versão ${data.version} não é autêntica.\nO arquivo no servidor foi alterado.\n\nHash Calculado (MinIO): ${data.calculated_hash}\nHash Armazenado (DB): ${data.stored_hash}`);
+            }
+        } else {
+            alert(`Erro na verificação: ${data.error || 'Erro desconhecido'}`);
+        }
+    } catch (err) {
+        alert(`Erro de conexão ao tentar verificar: ${err}`);
+    }
+}
+</script>
 {% endblock %}
