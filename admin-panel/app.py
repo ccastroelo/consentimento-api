@@ -25,25 +25,43 @@ def admin_page():
     """
     Serve a página HTML com o formulário de upload E A ÚLTIMA POLÍTICA.
     """
-    latest_policy_info = None # Variável para guardar a info
+    latest_policy_info = None
+    all_policies = []
     try:
-        # Chama a API de Políticas (comunicação interna do Docker)
-        response = requests.get(f"{URL_API_POLITICAS}/policies/latest")
-
+        response = requests.get(f"{URL_API_POLITICAS}/policies")
         if response.status_code == 200:
-            latest_policy_info = response.json() # Guarda o JSON da política
-        elif response.status_code == 404:
-            # Nenhuma política cadastrada, o que é ok
-            pass 
-        else:
-            # Outro erro, mas não vamos quebrar a página de admin por isso
-            print(f"Erro ao buscar latest policy: {response.text}") # Loga o erro no console do Docker
-
+            all_policies = response.json()
+            if all_policies:
+                latest_policy_info = all_policies[0]
     except requests.exceptions.RequestException as e:
-        print(f"Erro de conexão ao buscar latest policy: {str(e)}") # Loga o erro
+        print(f"Erro de conexão ao buscar policies: {str(e)}")
 
-    # Renderiza o template, passando a informação da política (pode ser None)
-    return render_template('admin.html', latest_policy=latest_policy_info)
+    adherence_info = None
+    try:
+        headers = {'Authorization': f'Bearer {ADMIN_TOKEN}'}
+        response_adherence = requests.get(
+            f"{URL_API_CONSENTIMENTOS}/admin/metrics/adherence", 
+            headers=headers
+        )
+        if response_adherence.status_code == 200:
+            adherence_info = response_adherence.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Erro de conexão ao buscar métricas de aderência: {str(e)}")
+
+    return render_template('admin.html', latest_policy=latest_policy_info, adherence_data=adherence_info, all_policies=all_policies)
+
+@app.route('/verify-policy/<int:policy_id>', methods=['POST'])
+def verify_policy_proxy(policy_id):
+    """Proxy para repassar a validação de Hash para a api-politicas."""
+    try:
+        headers = {'Authorization': f'Bearer {ADMIN_TOKEN}'}
+        response = requests.get(
+            f"{URL_API_POLITICAS}/policies/{policy_id}/verify",
+            headers=headers
+        )
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({"error": f"Erro interno no proxy: {str(e)}"}), 500
 
 @app.route('/upload-policy', methods=['POST'])
 def upload_policy_proxy():

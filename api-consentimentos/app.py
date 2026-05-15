@@ -280,5 +280,63 @@ def forget_user(current_user_id, user_id):
         db.session.rollback()
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
 
+@app.route('/admin/metrics/adherence', methods=['GET'])
+@admin_token_required
+def admin_metrics_adherence():
+    """Calcula a aderência às políticas para usuários ativos."""
+    try:
+        total_active_users = UserCrypto.query.filter_by(pending_deletion=False).count()
+        if total_active_users == 0:
+            return jsonify({"total_users": 0, "adherence": []}), 200
+            
+        results = db.session.query(
+            Policies.id,
+            Policies.version,
+            db.func.count(UserCrypto.id_user)
+        ).select_from(UserCrypto).join(
+            Consents, UserCrypto.last_consent_hash == Consents.validation_hash
+        ).join(
+            Policies, Consents.id_policy == Policies.id
+        ).filter(
+            UserCrypto.pending_deletion == False,
+            Consents.status == 'given'
+        ).group_by(
+            Policies.id, Policies.version
+        ).all()
+        
+        adherence_list = []
+        users_with_consent = 0
+        for policy_id, version, count in results:
+            percentage = round((count / total_active_users) * 100, 2)
+            adherence_list.append({
+                "policy_id": policy_id,
+                "version": version,
+                "users_count": count,
+                "percentage": percentage
+            })
+            users_with_consent += count
+            
+        users_without_consent = total_active_users - users_with_consent
+        if users_without_consent > 0:
+            percentage_without = round((users_without_consent / total_active_users) * 100, 2)
+            adherence_list.append({
+                "policy_id": None,
+                "version": "Sem Consentimento / Revogado",
+                "users_count": users_without_consent,
+                "percentage": percentage_without
+            })
+            
+        def sort_key(item):
+            return item['policy_id'] if item['policy_id'] is not None else -1
+            
+        adherence_list.sort(key=sort_key, reverse=True)
+            
+        return jsonify({
+            "total_users": total_active_users,
+            "adherence": adherence_list
+        }), 200
+    except Exception as e:
+        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
